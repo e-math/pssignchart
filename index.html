@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Sign chart - A jQuery tool for sign charts</title>
+        <meta charset="UTF-8">
+        <link type="text/css" rel="stylesheet" media="all" href="style.css" />
+        <link type="text/css" rel="stylesheet" media="all" href="mathquill.css" />
+        <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js"></script>
+        <script type="text/javascript" src="mathquill.js"></script>
+        <script type="text/javascript" src="jquery.pssignchart.js"></script>
+        <script type="text/javascript">
+            jQuery(function(){
+                jQuery('#pssc1').pssignchart();
+                jQuery('#pssc1').pssignchart('set', {"caption":"Merkkikaavio $\\frac{\\pi}{4}$ joo","rows":[{"func":"x^2","roots":[{"label":"0","value":0}],"motivation":4,"signs":["plus","plus"]},{"func":"x-2","roots":[{"label":"2","value":2}],"motivation":1,"signs":["minus","plus"]},{"func":"x^2-1","roots":[{"label":"-1","value":-1},{"label":"1","value":1}],"motivation":5,"signs":["plus","minus","plus"]}],"total":{"func":"\\frac{\\left(x^2\\right)\\left(x-2\\right)}{x^2-1}","signs":["minus","plus","plus","minus","plus"]},"intervals":[null,"inside","inside",null,"inside"],"rootpoints":["open",null,"open","closed"],"undefinedpoint":[true, false, true, false]}
+);
+                jQuery('#pssc2').pssignchart({mode: 'edit'});
+                jQuery('#pssc3').pssignchart({mode: 'edit', caption: 'This is signchart of: $\\frac{\\left(x^2\\right)\\left(x-2\\right)}{x^2-1}<0$'});
+
+                jQuery('#pssc3').pssignchart('add', {func: 'x^2', roots:[{label:'0', value:0}]});
+                jQuery('#pssc3').pssignchart('add', {func: 'x-2', roots: [2]});
+                jQuery('#pssc3').pssignchart('add', {func: 'x^2-1', roots: [-1, 1]});
+                jQuery('#pssc3').pssignchart('total', {func: '\\frac{\\left(x^2\\right)\\left(x-2\\right)}{x^2-1}'});
+            });
+        </script>
+    </head>
+    <body>
+<a href="https://github.com/e-math/pssignchart"><img style="position: absolute; top: 0; left: 0; border: 0;" src="https://s3.amazonaws.com/github/ribbons/forkme_left_red_aa0000.png" alt="Fork me on GitHub"></a>
+        <header>
+            <div id="head-content">
+                <img id="logo" src="images/emath-logo.png" alt="E-Math" />
+                <h1>Pssignchart</h1>
+                <h2>Create sign charts in web</h2>
+            </div>
+        </header>
+        <div id="mathquillpanel"></div>
+        <article class="content">
+
+            <p>Here are couple of examples, how to use sign chart tool <code>pssignchart.js</code>.</p>
+            <p>Pssignchart is a jQuery-plugin and it turns given html-element to to a sign chart in edit or view mode.</p>
+            
+            <h2>Example 1: view mode</h2>
+            <p>The tool can show ready sign charts in static view mode.</p>
+<div class="codeexample">
+&lt;div id="pssc1"&gt;&lt;/div&gt;
+&lt;script type="text/javascript"&gt;
+    jQuery('#pssc1').pssignchart();
+    jQuery('#pssc1').pssignchart('set', {
+        "rows":[
+            {"func":"x^2","roots":[{"label":"0","value":0}],"motivation":4,"signs":["plus","plus"]},
+            {"func":"x-2","roots":[{"label":"2","value":2}],"motivation":1,"signs":["minus","plus"]},
+            {"func":"x^2-1","roots":[{"label":"-1","value":-1},{"label":"1","value":1}],"motivation":5,"signs":["plus","minus","plus"]}
+        ],
+        "total":{"func":"\\frac{\\left(x^2\\right)\\left(x-2\\right)}{x^2-1}","signs":["minus","plus","plus","minus","plus"]},
+        "intervals":[null,"inside","inside",null,"inside"],
+        "rootpoints":["open",null,"open","closed"],
+        "undefinedpoint":[]
+    });
+&lt;/script&gt;
+</div>
+            <div id="pssc1"></div>
+
+            <h2>Example 2: edit mode</h2>
+            <p>The tool is inited in edit mode. The sign chart is initally empty and it can be filled interactively.</p>
+            <p>The user interface is ascetic but simple. The user can add new rows in the chart by inputting
+                the (sub)formula, selecting number of its roots and filling in the values of the roots. These values
+                are accepted by clicking "plus"-sign.</p>
+            <p>The type of the (sub)formula is selected by clicking the button next to the formula. Plus and minus signs
+                can be selected by clicking the intervals. The total formula can be written on the last row. If the total
+                formula is not defined in some roots, this can be marked by clicking those roots on that row. The type
+                of the inequation can selected by clicking. The interwals and their endpoints can be selected also by clicking.
+            </p>
+            <p>Under the chart is the space for caption.</p>
+            <p>On each change the signchart triggers <code>pssc_changed</code>-event that can be bind in the containing system
+                to trigger the saving of the data. The data of the sign chart can be obtained with:
+                <code>jQuery('#myid').pssignchart('get')</code>.</p>
+<div class="codeexample">
+&lt;div id="pssc2"&gt;&lt;/div&gt;
+&lt;script type="text/javascript"&gt;
+    jQuery('#pssc2').pssignchart({mode: 'edit'});
+&lt;/script&gt;
+</div>
+            <div id="pssc2"></div>
+
+            <h2>Example 3: prefilled edit mode</h2>
+            <p>Sign chart in edit mode can also be prefilled with some data. Rows can be added in the existing chart.</p>
+<div class="codeexample">
+&lt;div id="pssc3"&gt;&lt;/div&gt;
+&lt;script type="text/javascript"&gt;
+    jQuery('#pssc3').pssignchart({mode: 'edit'});
+    jQuery('#pssc3').pssignchart('add', {func: '2x-3', roots:[{label:'\\frac{3}{2}', value:1.5}]});
+    jQuery('#pssc3').pssignchart('add', {func: 'x^2', roots:[0]});
+    jQuery('#pssc3').pssignchart('add', {func: 'x-2', roots: [2]});
+    jQuery('#pssc3').pssignchart('add', {func: 'x^2-1', roots: [-1, 1]});
+    jQuery('#pssc3').pssignchart('total', {func: '\\frac{\\left(x^2\\right)\\left(x-2\\right)}{x^2-1}'});
+&lt;/script&gt;
+</div>
+            <div id="pssc3"></div>
+        </article>
+        <footer>
+            <div id="disclaimerbox">
+                <div id="leftlogo">
+                    <img src="images/CB_logo-200.png" alt="" />
+                </div>
+                <div id="rightlogo">
+                    <img src="images/EU_with_references-300.png" alt="" />
+                </div>
+                <div id="disclaimer">
+                    The contents of the website reflect the authors' views. The Managing Authority of the Central Baltic INTERREG IVA Programme cannot be held liable for the information published by the project partners. 
+                </div>
+            </div>
+        </footer>
+    </body>
+</html>
