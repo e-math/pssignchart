@@ -10,60 +10,77 @@
 
 (function($){
     // jQuery plugin
-    $.fn.pssignchart = function(options){
-        // Test for numberline commands and trigger command with options.
-        if (typeof(options) === 'string'){
-            var cmd = options;
-            options = arguments[1] || {};
-            if (typeof(options) === 'string'){
+    var convert2new = function(params){
+        if (!params || !params.type || !params.data) {
+            params = $.extend(true, {}, Pssignchart.defaults, {data: params});
+            if (params.data.mode === 'edit') {
+                params.settings.mode = 'edit';
+            };
+        };
+        return params;
+    }
+    var methods = {
+        'init': function(params){
+            params = convert2new(params);
+            return this.each(function(){
+                var signchart = new Pssignchart(this, params);
+            });
+        },
+        'getdata': function(){
+            var $place = $(this).eq(0);
+            $place.trigger('getdata');
+            var data = $place.data('[[elementdata]]');
+            return data;
+        }
+    }
+    
+
+    $.fn.pssignchart = function(method){
+        if (methods[method]) {
+            return methods[method].apply(this, Array.prototype.slice.call(arguments, 1));
+        } else if (typeof(method) === 'object' || !method) {
+            return methods.init.apply(this, arguments);
+        } else if (typeof(method) === 'string') {
+            var cmd = method;
+            var options = arguments[1] || {};
+            if (typeof(options) === 'string') {
                 options = {name: options};
-            }
-            if (typeof(options) === 'undefined'){
-                options = {}
             }
             // Placeholder variable for returning value.
             options.result = this;
-            this.children('div.pssignchart').trigger(cmd, options);
+            $(this).children('div.pssignchart').trigger(cmd, options);
             return options.result;
-        }
-        // Extend default settings with user given options.
-        var settings = $.extend({
-            width: 'auto',              // width of sign chart. Defaults to width of parent element (auto)
-            color: 'red',               // highlight color
-            theme: "pssc_default",      // html class for styling
-            mode: 'view',
-            caption: ''
-        }, options);
-
-        // Return this so that methods of jQuery element can be chained.
-        return this.each(function(){
-            // Create new Pssignchart object.
-            var signchart = new Pssignchart(this, settings);
-            //testilogit.signchart = signchart;
-            // Init the signchart
-            signchart.init();
-        });
-    }
+        } else {
+            $.error('Method ' + method + ' does not exist in Pssignchart.');
+            return false;
+        };
+    };
     
-    var Pssignchart = function(place, settings){
+    var Pssignchart = function(place, options){
         // Constructor for Pssignchart object.
-        this.settings = settings;
-        this.mode = settings.mode;
-        this.caption = this.settings.caption;
-        this.place = $(place);
-        this.place.html('<div></div>').addClass('pssignchartwrapper');
-        this.place = this.place.find('div');
+        options = $.extend(true, {}, Pssignchart.defaults, options);
+        this.type = 'pssignchart';
+        this.settings = options.settings;
+        this.metadata = options.metadata;
+        this.metadata.creator = this.metadata.creator || this.settings.username;
+        this.metadata.created = this.metadata.created || (new Date()).toString();
+        this.data = options.data;
+        //this.caption = this.data.caption;
+        this.wrapper = $(place);
+        this.wrapper.html('<div></div>').addClass('pssignchartwrapper');
+        this.place = this.wrapper.find('div');
         this.place.addClass('pssignchart');
         this.rows = [];
         this.roots = [];
-        this.total = {func: '', signs: [''], relation: '\\lt'};
-        this.intervals = [];
-        this.rootpoints = [];
-        this.undefinedpoint = [];
+        //this.total = {func: '', signs: [''], relation: '\\lt'};
+        //this.intervals = [];
+        //this.rootpoints = [];
+        //this.undefinedpoint = [];
         
         if ($('head style#psscstyle').length == 0){
             $('head').append('<style id="psscstyle" type="text/css">'+Pssignchart.strings['style']+'</style>');
         }
+        this.init();
     }
     
     Pssignchart.prototype.init = function(){
@@ -72,33 +89,49 @@
         if (this.place.hasClass('pssc_rendered')){
             return false;
         }
-        if (this.settings.width == 'auto'){
+        if (this.data.width == 'auto'){
             this.width = this.place.width();
         } else {
-            this.width = this.settings.width;
+            this.width = this.data.width;
         }
-        this.place.addClass('pssc_rendered').addClass(this.settings.theme);
+        this.place.addClass('pssc_rendered').addClass(this.data.theme);
         var $schart = $('<div class="pssc_tablewrapper"><table class="pssc_table"><caption>'+this.caption+'</caption><thead class="pssc_head"><tr><td colspan="2"><div></div></td></tr></thead><tbody class="pssc_body"></tbody><tbody class="pssc_intervals"><tr></tr></tbody></table></div>');
         this.schartnumber = -1;
         while ($('#signchart_'+(++this.schartnumber)).length > 0){};
         $schart.attr('id','#signchart_'+this.schartnumber)
         this.place.empty().append($schart);
         this.captionelem = $schart.find('caption');
-        this.draw();
+        this.setMode(this.settings.mode);
+        this.setData(this.data, true);
+        this.show();
         this.initEvents();
-        if (this.mode === 'edit'){
+        return this;
+    }
+    
+    Pssignchart.prototype.setMode = function(mode){
+        if (!Pssignchart.modes[mode]) {
+            mode = 'view';
+        }
+        this.settings.mode = mode;
+        var modedata = Pssignchart.modes[mode];
+        this.editable = modedata.editable;
+    }
+    
+    Pssignchart.prototype.show = function(){
+        if (this.editable) {
             this.place.addClass('editmode');
+            this.draw();
             this.showEdit();
         } else {
             this.place.removeClass('editmode');
+            this.draw();
         }
-        return this;
     }
     
     Pssignchart.prototype.draw = function(){
         // Draw the signchart
         var signchart = this;
-        if (this.mode === 'edit') {
+        if (this.editable) {
             this.captionelem.html('<span class="editablecaption mathquill-textbox">'+this.caption+'</span>').find('.editablecaption:not(.mathquill-rendered-math)').mathquill('textbox');
         } else {
             this.captionelem.html(this.caption.replace(/\$([^$]*)\$/g, '<span class="mathquill-embedded-latex">$1</span>')).find('.mathquill-embedded-latex:not(.mathquill-rendered-math)').mathquill();
@@ -108,7 +141,7 @@
         $tbody.empty();
         // Draw each function row.
         for (var i = 0; i < this.rows.length; i++){
-            if (this.mode === 'view') {
+            if (!this.editable) {
                 this.viewRow($tbody, i);
             } else {
                 this.editRow($tbody, i);
@@ -120,14 +153,14 @@
             $trow.append('<td colspan="2" class="pssc_total"><span class="mathquill">'+this.total.func+'</span></td>');
             for (var j = 0; j < this.roots.length; j++){
                 var thisundefined = (this.undefinedpoint[j] ? ' isundefined': '');
-                if (this.mode === 'edit') {
+                if (this.editable) {
                     $trow.append('<td class="pssc_sign" sign="'+this.getTotalSign(j)+'" rootnum="'+j+'"><div class="pssc_totalwrapper"><a href="javascript:;" class="pssc_totalsign"></a><a href="javascript:;" class="pssc_totalundefined'+thisundefined+'"></a></div></td>');
                 } else {
                     $trow.append('<td class="pssc_sign" sign="'+this.getTotalSign(j)+'" rootnum="'+j+'"><div class="pssc_totalwrapper"><span class="pssc_totalsign"></span><span class="pssc_totalundefined'+thisundefined+'"></span></div></td>');
                 }
                 
             }
-            if (this.mode === 'edit') {
+            if (this.editable) {
                 $trow.append('<td class="pssc_sign" sign="'+this.getTotalSign(this.roots.length)+'" rootnum="'+this.roots.length+'"><a href="javascript:;" class="pssc_totalsign"></a></td>');
             } else {
                 $trow.append('<td class="pssc_sign" sign="'+this.getTotalSign(this.roots.length)+'" rootnum="'+this.roots.length+'"><span class="pssc_totalsign"></span></td>');
@@ -135,7 +168,7 @@
 
             $tbody.append($trow);
             // Function on total row is editable, if in edit-mode.
-            if (this.mode === 'edit'){
+            if (this.editable){
                 $tbody.find('tr.pssc_total td span.mathquill').addClass('mathquill-editable');
             }
             this.place.find('.mathquill-editable:not(.mathquill-rendered-math, .mathquill-textbox)').mathquill('editable');
@@ -148,7 +181,7 @@
         if (this.rows.length > 0){
             // Add intervals
             var lefthandside = (this.rows.length === 1 ? this.rows[0].func : this.total.func);
-            if (this.mode === 'edit') {
+            if (this.editable) {
                 var intervalhtml = '<td colspan="2"><div class="pssc_inequality"><a href="javascript:;" class="pssc_ineqlink"><span class="pssc_ineq">'+ lefthandside + this.getTotalRelation() +'0</span></a></div></td>';
                 for (var i = 0; i < this.roots.length; i++){
                     intervalhtml += '<td class="pssc_interval"><span><a href="javascript:;" class="pssc_intervalline" intervaltype="'
@@ -182,7 +215,7 @@
         this.place.find('.mathquill:not(.mathquill-rendered-math)').mathquill();
 
         // If in editmode, init all actions.
-        if (this.mode === 'edit'){
+        if (this.editable){
             this.initEdit();
         }
     }
@@ -376,7 +409,7 @@
             $(this).html('<span class="pssc_ineq">'+lefthandside + signchart.getTotalRelation() + '0</span>')
                 .find('.pssc_ineq').mathquill('embedded-latex');
             signchart.place.find('.pssc_ineq > span.binary-operator').last().addClass('pssc_ineqrelation');
-            signchart.changed();
+            //signchart.changed();
         });
     }
     
@@ -514,12 +547,12 @@
         this.roots.sort(function(a,b){return (a.value < b.value ? -1 : 1)});
         if (!nodraw){
             this.draw();
+            this.changed();
         }
-        this.changed();
         return this;
     }
     
-    Pssignchart.prototype.removeFunc = function(index){
+    Pssignchart.prototype.removeFunc = function(index, nodraw){
         // Remove a function.
         this.rows.splice(index, 1);
         this.refreshRoots();
@@ -536,8 +569,11 @@
         }
         this.intervals[this.roots.length] = '';
         this.total.signs[this.roots.length] = '';
-        this.draw();
-        this.changed();
+        if (!nodraw) {
+            this.draw();
+            this.changed();
+        }
+        //this.changed();
     }
     
     Pssignchart.prototype.refreshRoots = function(){
@@ -564,8 +600,8 @@
         this.total = {func: options.func, signs: options.signs, relation: options.relation};
         if (!nodraw){
             this.draw();
+            this.changed();
         }
-        this.changed();
         return this;
     }
     
@@ -589,7 +625,7 @@
     }
     
     Pssignchart.prototype.setSign = function(row, col, sign){
-        if (sign !== 'plus' && sign !== 'minus'){
+        if (sign !== 'plus' && sign !== 'minus' && sign !== ''){
             return false;
         }
         this.rows[row].setSign(col, sign);
@@ -665,7 +701,23 @@
     }
     
     Pssignchart.prototype.getData = function(options){
-        var data = {rows: [], total: {func: "", signs: [], relation: '\\lt'}, intervals: [], rootpoints: [], undefinedpoint: [], caption: this.caption};
+        var result = {
+            type: this.type,
+            metadata: $.extend(true, {}, Pssignchart.defaults.metadata, this.metadata),
+            data: {
+                rows: [],
+                total: {
+                    func: "",
+                    signs: [],
+                    relation: '\\lt'
+                },
+                intervals: [],
+                rootpoints: [],
+                undefinedpoint: [],
+                caption: this.caption
+            }
+        };
+        var data = result.data;
         for (var i=0; i<this.rows.length; i++){
             data.rows.push(this.rows[i].getData());
         }
@@ -675,10 +727,10 @@
         data.intervals = this.intervals.slice(0);
         data.rootpoints = this.rootpoints.slice(0);
         data.undefinedpoint = this.undefinedpoint.slice(0);
-        options.result = data;
-    }
+        return result;
+    };
     
-    Pssignchart.prototype.setData = function(options){
+    Pssignchart.prototype.setData = function(options, isinit){
         this.empty();
         this.caption = options.caption || '';
         for (var i = 0; i < options.rows.length; i++){
@@ -688,8 +740,9 @@
         this.intervals = options.intervals.slice(0);
         this.rootpoints = options.rootpoints.slice(0);
         this.undefinedpoint = options.undefinedpoint.slice(0);
-        this.draw();
-        this.changed();
+        if (!isinit) {
+            this.changed();
+        }
     }
     
     Pssignchart.prototype.empty = function(){
@@ -699,61 +752,78 @@
         this.intervals = [];
         this.rootpoints = [];
         this.caption = '';
-        this.draw();
-        this.changed();
+        this.undefinedpoint = [];
     }
     
     Pssignchart.prototype.changed = function(){
-        this.place.trigger('pssc_changed');
+        this.metadata.modifier = this.settings.username;
+        this.metadata.modified = (new Date()).toString();
+        this.place.trigger('pssc_changed')
+        this.wrapper.trigger('element_changed', {type: 'pssignchart'});
     }
     
     Pssignchart.prototype.initEvents = function(){
         var schart = this;
         this.place.bind('add', function(e, options){
             schart.addFunc(options);
+            //schart.changed();
         });
 
         this.place.bind('total', function(e, options){
             schart.addTotal(options);
+            //schart.changed();
         });
 
         this.place.bind('setsign', function(e, options){
             schart.setSign(options.row, options.col, options.sign);
+            //schart.changed();
             schart.draw();
         });
 
         this.place.bind('settotsign', function(e, options){
             schart.setTotalSign(options.col, options.sign);
+            //schart.changed();
             schart.draw();
         });
 
         this.place.bind('setinterval', function(e, options){
             schart.setInterval(options.col, options.onoff);
+            //schart.changed();
             schart.draw();
         });
 
         this.place.bind('setrootpoint', function(e, options){
             schart.setRootpoint(options.col, options.onoff);
+            //schart.changed();
             schart.draw();
         });
 
         this.place.bind('setundef', function(e, options){
             schart.setUndef(options.col, options.onoff);
+            //schart.changed();
             schart.draw();
         });
 
         this.place.bind('setmot', function(e, options){
             schart.setMotString(options.row, options.mot);
+            //schart.changed();
             schart.draw();
         });
 
         this.place.bind('get', function(e, options){
-            return schart.getData(options);
+            var result = schart.getData(options);
+            schart.place.data('[[elementdata]]', result);
+        });
+        
+        this.wrapper.bind('getdata', function(e, options){
+            var result = schart.getData(options);
+            schart.wrapper.data('[[elementdata]]', result);
         });
         
         this.place.bind('set', function(e, options){
-            schart.setData(options);
-            schart.draw();
+            options = convert2new(options);
+            schart.setData(options.data);
+            schart.show();
         })
         
         this.place.bind('empty', function(e, options){
@@ -774,6 +844,40 @@
         'parab-down-1',
         'parab-down-2'
     ]
+    
+    Pssignchart.defaults = {
+        "type": "pssignchart",
+        "metadata": {
+            "creator": "",
+            "created": 0,
+            "modifier": "",
+            "modified": 0,
+            "tags": []
+        },
+        "data": {
+            width: 'auto',              // width of sign chart. Defaults to width of parent element (auto)
+            color: 'red',               // highlight color
+            theme: "pssc_default",      // html class for styling
+            caption: '',
+            rows: [],
+            total: {func: '', signs: [''], relation: '\\lt'},
+            intervals: [],
+            rootpoints: [],
+            undefinedpoint: []
+        },
+        "settings": {
+            mode: 'view'
+        }
+    };
+    
+    Pssignchart.modes = {
+        view: {
+            editable: false
+        },
+        edit: {
+            editable: true
+        }
+    }
     
     Pssignchart.strings = {
         icons: {
@@ -852,7 +956,7 @@
             '.editmode table.pssc_table td.pssc_sign {cursor: pointer; text-align: center; min-width: 50px; width: 50px;}',
             'table.pssc_table td.pssc_sign[sign=""]:before {content: "\\0000a0";}',
             'table.pssc_table td.pssc_sign[sign="plus"]:before {content: "+"; font-weight: bold; display: block; text-align: center; color: white; text-shadow: 0 0 1px black; margin: 0 7px;}',
-            'table.pssc_table td.pssc_sign[sign="plus"] {background: rgb(248,80,50); /* Old browsers */',
+            '.pssc_default table.pssc_table td.pssc_sign[sign="plus"] {background: rgb(248,80,50); /* Old browsers */',
                 'background: -moz-linear-gradient(top,  rgba(248,80,50,1) 0%, rgba(241,111,92,1) 50%, rgba(246,41,12,1) 51%, rgba(240,47,23,1) 71%, rgba(231,56,39,1) 100%); /* FF3.6+ */',
                 'background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,rgba(248,80,50,1)), color-stop(50%,rgba(241,111,92,1)), color-stop(51%,rgba(246,41,12,1)), color-stop(71%,rgba(240,47,23,1)), color-stop(100%,rgba(231,56,39,1))); /* Chrome,Safari4+ */',
                 'background: -webkit-linear-gradient(top,  rgba(248,80,50,1) 0%,rgba(241,111,92,1) 50%,rgba(246,41,12,1) 51%,rgba(240,47,23,1) 71%,rgba(231,56,39,1) 100%); /* Chrome10+,Safari5.1+ */',
@@ -861,7 +965,7 @@
                 'background: linear-gradient(to bottom,  rgba(248,80,50,1) 0%,rgba(241,111,92,1) 50%,rgba(246,41,12,1) 51%,rgba(240,47,23,1) 71%,rgba(231,56,39,1) 100%); /* W3C */',
                 'filter: progid:DXImageTransform.Microsoft.gradient( startColorstr="#f85032", endColorstr="#e73827",GradientType=0 ); /* IE6-9 */}',
             'table.pssc_table td.pssc_sign[sign="minus"]:before {content: "\u2014"; font-weight: bold; display: block; text-align: center; color: white; text-shadow: 0 0 1px black; margin: 0 7px;}',
-            'table.pssc_table td.pssc_sign[sign="minus"] {background: rgb(183,222,237); /* Old browsers */',
+            '.pssc_default table.pssc_table td.pssc_sign[sign="minus"] {background: rgb(183,222,237); /* Old browsers */',
                 'background: -moz-linear-gradient(top,  rgba(183,222,237,1) 0%, rgba(113,206,239,1) 50%, rgba(33,180,226,1) 51%, rgba(183,222,237,1) 100%); /* FF3.6+ */',
                 'background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,rgba(183,222,237,1)), color-stop(50%,rgba(113,206,239,1)), color-stop(51%,rgba(33,180,226,1)), color-stop(100%,rgba(183,222,237,1))); /* Chrome,Safari4+ */',
                 'background: -webkit-linear-gradient(top,  rgba(183,222,237,1) 0%,rgba(113,206,239,1) 50%,rgba(33,180,226,1) 51%,rgba(183,222,237,1) 100%); /* Chrome10+,Safari5.1+ */',
@@ -911,7 +1015,25 @@
             '.pssignchart .pssc_removerow_button {display: none;}',
             '.pssignchart.editmode .pssc_removerow_button {display: inline-block;}',
             '.pssignchart a .pssc_text {display: none;}',
-            '.pssignchart a .pssc_icon {display: inline-block;}'
+            '.pssignchart a .pssc_icon {display: inline-block;}',
+            
+            // Plain theme
+            '.pssc_plain table.pssc_table {border-collapse: collapse;  margin: 0.2em auto; border: none; display: inline-block; text-align: left;}',
+            '.pssc_plain tbody.pssc_body td {border-bottom: 1px solid black; border-top: 1px solid black;}',
+            '.pssc_plain table.pssc_table td.pssc_sign[sign="minus"]::before {color: black; text-shadow: none;}',
+            '.pssc_plain table.pssc_table td.pssc_sign[sign="plus"]::before {color: black; text-shadow: none;}',
+
+            '.pssc_plain table.pssc_table tbody.pssc_intervals {border: none; background-color: transparent;}',
+            '.pssc_plain table.pssc_table tbody.pssc_intervals td {border: none; background-color: transparent; height: 1em;}',
+            '.pssc_plain table.pssc_table tbody.pssc_intervals td.pssc_interval {border-bottom: 1px dotted #777; vertical-align: bottom;}',
+            '.pssc_plain table.pssc_table tbody.pssc_intervals td.pssc_interval span {display: block; margin: 0; padding: 0; position: relative;}',
+            '.pssc_plain table.pssc_table tbody.pssc_intervals td.pssc_interval span .pssc_rootpoint {display: inline-block; position: absolute; width: 8px; height: 8px; right: -5px; bottom: -6px; border: 1px solid #bbb; border-radius: 5px; z-index: 5;}',
+            '.pssc_plain table.pssc_table tbody.pssc_intervals td.pssc_interval span span.pssc_rootpoint[pointtype=""] {display: none;}',
+            '.pssc_plain table.pssc_table tbody.pssc_intervals td.pssc_interval span .pssc_rootpoint[pointtype="open"] {border: 2px solid black; background-color: white;}',
+            '.pssc_plain table.pssc_table tbody.pssc_intervals td.pssc_interval span .pssc_rootpoint[pointtype="closed"] {border: 1px solid black; background-color: black;}',
+            '.pssc_plain table.pssc_table tbody.pssc_intervals td.pssc_interval span .pssc_intervalline {display: block; height: 4px; position: absolute; left: -1px; right: -1px; bottom: -3px;}',
+            '.pssc_plain table.pssc_table tbody.pssc_intervals td.pssc_interval span .pssc_intervalline[intervaltype="inside"] {border-bottom: 4px solid black;}',
+            '.pssc_plain {min-height: 2em; background-color: white; padding: 5px 15px 15px 15px; margin: 1em 0; text-align: center;}'
         ].join('\n')
     }
     
@@ -1057,6 +1179,30 @@
             }
         }
     }
+    
+    /******
+     * Info about element (icon, description, etc.)
+     ******/
+    Pssignchart.elementinfo = {
+        type: 'pssignchart',
+        elementtype: ['elements', 'studentelements'],
+        jquery: 'pssignchart',
+        name: 'Signchart',
+        icon: '<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="30" height="30" viewBox="0 0 30 30" class="mini-icon mini-icon-signchart"><path style="stroke: none;" d="M2 14 l26 0 l0 2 l-26 0z m4 13 l16 -24 l2 2 l-16 24z m-4 -6 l5 0 l0 1 l-5 0z m22 -13 l2 0 l0 -2 l1 0 l0 2 l2 0 l0 1 l-2 0 l0 2 l-1 0 l0 -2 l-2 0z" /></svg>',
+        description: {
+            en: 'Sign chart element.',
+            fi: 'Merkkikaavio.'
+        },
+        classes: ['math', 'content']
+    }
+
+    if (typeof($.fn.elementset) === 'function') {
+        $.fn.elementset('addelementtype', Pssignchart.elementinfo);
+    }
+    if (typeof($.fn.elementpanel) === 'function') {
+        $.fn.elementpanel('addelementtype', Pssignchart.elementinfo);
+    }
+
     
 })(jQuery)
 
