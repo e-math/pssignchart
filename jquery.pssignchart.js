@@ -59,7 +59,7 @@
     var Pssignchart = function(place, options){
         // Constructor for Pssignchart object.
         options = $.extend(true, {}, Pssignchart.defaults, options);
-        this.type = 'pssignchart';
+        this.type = 'signchart';
         this.settings = options.settings;
         this.metadata = options.metadata;
         this.metadata.creator = this.metadata.creator || this.settings.username;
@@ -759,7 +759,7 @@
         this.metadata.modifier = this.settings.username;
         this.metadata.modified = (new Date()).toString();
         this.place.trigger('pssc_changed')
-        this.wrapper.trigger('element_changed', {type: 'pssignchart'});
+        this.wrapper.trigger('element_changed', {type: 'signchart'});
     }
     
     Pssignchart.prototype.initEvents = function(){
@@ -846,7 +846,7 @@
     ]
     
     Pssignchart.defaults = {
-        "type": "pssignchart",
+        "type": "signchart",
         "metadata": {
             "creator": "",
             "created": 0,
@@ -1184,7 +1184,7 @@
      * Info about element (icon, description, etc.)
      ******/
     Pssignchart.elementinfo = {
-        type: 'pssignchart',
+        type: 'signchart',
         elementtype: ['elements', 'studentelements'],
         jquery: 'pssignchart',
         name: 'Signchart',
