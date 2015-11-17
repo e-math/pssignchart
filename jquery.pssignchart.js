@@ -11,7 +11,7 @@
 (function($){
     // jQuery plugin
     var convert2new = function(params){
-        if (!params || !params.type || !params.data) {
+        if (!params || !params.type) {
             params = $.extend(true, {}, Pssignchart.defaults, {data: params});
             if (params.data.mode === 'edit') {
                 params.settings.mode = 'edit';
@@ -1193,7 +1193,8 @@
             en: 'Sign chart element.',
             fi: 'Merkkikaavio.'
         },
-        classes: ['math', 'content']
+        roles: ['teacher', 'student', 'author'],
+        classes: ['math']
     }
 
     if (typeof($.fn.elementset) === 'function') {
